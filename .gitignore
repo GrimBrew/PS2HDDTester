@@ -1,0 +1,11 @@
+**/.vs
+**/.vscode
+*.o
+*.irx
+*.bin
+*.elf
+**/obj
+**/elf
+**/bin
+**/irx
+**/lib
