@@ -4,6 +4,14 @@
 
 #include "opl-hdd-ioctl.h"
 
+void ata_get_error_info(int* status, int* error)
+{
+    USE_ATA_REGS;
+
+    *status = ata_hwport->r_status;
+    *error = ata_hwport->r_error & 0xff;
+}
+
 static void ata_multiword_dma_mode(int mode)
 {
     USE_SPD_REGS;

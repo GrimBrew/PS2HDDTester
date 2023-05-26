@@ -21,6 +21,7 @@
 int SequentialRawReadTest(int mbToRead, int blockSizeKb, void* pIopBuffer, int fullPass, u64* pCrcErrorCount, u64* pElapsedTimeEE, u64* pElapsedTimeIOP)
 {
     hddAtaReadTest_t testInfo;
+    int result = 0;
 
     // Open the hdd for raw read access.
     int fd = fileXioOpen("xhdd0:", FIO_O_RDONLY);
@@ -57,7 +58,12 @@ int SequentialRawReadTest(int mbToRead, int blockSizeKb, void* pIopBuffer, int f
     // Loop and read the specified amount of data from the HDD.
     for (int i = 0; i < blockCount; i++)
     {
-        fileXioDevctl("xhdd0:", ATA_DEVCTL_READ_BLOCK, &testInfo, sizeof(testInfo), NULL, 0);
+        if ((result = fileXioDevctl("xhdd0:", ATA_DEVCTL_READ_BLOCK, &testInfo, sizeof(testInfo), NULL, 0)) < 0)
+        {
+            // Abort for anything other than CRC errors.
+            if (result != ATA_RES_ERR_ICRC)
+                break;
+        }
     }
 
     // Get the stop time and calculate how long the reads took.
@@ -75,13 +81,14 @@ int SequentialRawReadTest(int mbToRead, int blockSizeKb, void* pIopBuffer, int f
     fileXioClose(fd);
     free(pBuffer);
 
-    return 0;
+    return result;
 }
 
 int RandomRawReadTest(int mbToRead, int blockSizeKb, void* pIopBuffer, int fullPass, u64 hddMaxLBA, u64* pCrcErrorCount, u64* pElapsedTimeEE, u64* pElapsedTimeIOP)
 {
     hddAtaReadTest_t testInfo;
     u32 sectorsInOneGB = (1024 * ONE_MB_IN_BYTES) / HDD_SECTOR_SIZE;
+    int result = 0;
 
     // Open the hdd for raw read access.
     int fd = fileXioOpen("xhdd0:", FIO_O_RDONLY);
@@ -133,7 +140,12 @@ int RandomRawReadTest(int mbToRead, int blockSizeKb, void* pIopBuffer, int fullP
 
         // Read the next block from the HDD.
         fileXioLseek64(fd, lba_pos, FIO_SEEK_SET);
-        fileXioDevctl("xhdd0:", ATA_DEVCTL_READ_BLOCK, &testInfo, sizeof(testInfo), NULL, 0);
+        if ((result = fileXioDevctl("xhdd0:", ATA_DEVCTL_READ_BLOCK, &testInfo, sizeof(testInfo), NULL, 0)) < 0)
+        {
+            // Abort for anything other than CRC errors.
+            if (result != ATA_RES_ERR_ICRC)
+                break;
+        }
     }
 
     // Get the stop time and calculate how long the reads took.
@@ -150,5 +162,5 @@ int RandomRawReadTest(int mbToRead, int blockSizeKb, void* pIopBuffer, int fullP
     fileXioClose(fd);
     free(pBuffer);
 
-    return 0;
+    return result;
 }

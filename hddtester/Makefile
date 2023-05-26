@@ -2,7 +2,7 @@
 EE_BIN_DIR = bin/
 EE_OBJS_DIR = obj/
 
-IOP_MODS = iomanX fileXio bdm bdmfs_fatfs ps2dev9
+IOP_MODS = iomanX fileXio ps2dev9
 IOP_IRXS = $(addsuffix .irx,$(IOP_MODS))
 IOP_IRX_OBJS = $(addsuffix .o,$(IOP_MODS))
 

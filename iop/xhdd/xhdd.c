@@ -18,6 +18,9 @@ static int isHDPro;
 static u64 lba_pos = 0;
 static u64 io_timer = 0;
 
+static hddAtaError_t ata_error_info;
+
+extern void ata_get_error_info(int* status, int* error);
 extern int ata_device_set_transfer_mode(int device, int type, int mode);
 
 static u32 ComputeTimeDiff(iop_sys_clock_t* pStart,iop_sys_clock_t* pEnd)
@@ -34,7 +37,7 @@ static u32 ComputeTimeDiff(iop_sys_clock_t* pStart,iop_sys_clock_t* pEnd)
 	return ((iDiff != 0) ? iDiff : 1);
 }
 
-static void BlockRead(hddAtaReadTest_t* pArgs)
+static int BlockRead(hddAtaReadTest_t* pArgs)
 {
     SifDmaTransfer_t dmaInfo;
     int dmaId;
@@ -43,8 +46,12 @@ static void BlockRead(hddAtaReadTest_t* pArgs)
     // TODO: Add time calculation once I figure out why GetSystemTime doesn't work...
 
     // Read the data from the HDD.
-    ata_device_sector_io64(0, pArgs->iop_buffer, lba_pos, pArgs->block_size_in_sectors, ATA_DIR_READ);
+    int result = ata_device_sector_io64(0, pArgs->iop_buffer, lba_pos, pArgs->block_size_in_sectors, ATA_DIR_READ);
     lba_pos += pArgs->block_size_in_sectors;
+
+    // If an error occured save  it before it gets reset.
+    if (result != 0)
+        ata_get_error_info(&ata_error_info.status, &ata_error_info.error);
 
     // Check if we should copy it to the EE.
     if (pArgs->copy_to_ee != 0)
@@ -62,6 +69,8 @@ static void BlockRead(hddAtaReadTest_t* pArgs)
         // Wait for the dma operation to complete.
         while (sceSifDmaStat(dmaId) >= 0);
     }
+
+    return result;
 }
 
 static int xhddInit(iop_device_t *device)
@@ -186,12 +195,20 @@ static int xhddDevctl(iop_file_t *fd, const char *name, int cmd, void *arg, unsi
             if (arg == NULL || arglen < sizeof(hddAtaReadTest_t))
                 return -EINVAL;
 
-            BlockRead((hddAtaReadTest_t*)arg);
-            return 0;
+            return BlockRead((hddAtaReadTest_t*)arg);
         }
         case ATA_DEVCTL_FLUSH_CACHE:
         {
             return ata_device_flush_cache(fd->unit);
+        }
+        case ATA_DEVCTL_GET_ATA_ERROR:
+        {
+            // Make sure the input buffer is valid.
+            if (arg == NULL || arglen < sizeof(hddAtaError_t))
+                return -EINVAL;
+
+            memcpy(arg, &ata_error_info, sizeof(ata_error_info));
+            return 0;
         }
         default:
             return -EINVAL;

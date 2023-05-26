@@ -19,7 +19,7 @@ ATA_ALL_PIO_MODES ?= 0
 ATA_GAMESTAR_WORKAROUND ?= 1
 
 # Enable to enable support for the BDM interface.
-ATA_ENABLE_BDM ?= 1
+ATA_ENABLE_BDM ?= 0
 
 IOP_BIN ?= ps2atad.irx
 

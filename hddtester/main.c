@@ -29,12 +29,6 @@ extern unsigned int size_iomanX_irx;
 extern unsigned char fileXio_irx[];
 extern unsigned int size_fileXio_irx;
 
-extern unsigned char bdm_irx[];
-extern unsigned int size_bdm_irx;
-
-extern unsigned char bdmfs_fatfs_irx[];
-extern unsigned int size_bdmfs_fatfs_irx;
-
 extern unsigned char ps2dev9_irx[];
 extern unsigned int size_ps2dev9_irx;
 
@@ -122,8 +116,8 @@ struct menu_option_info main_menu_options[] =
     { "#3 Random raw read 6MB UDMA 4+ HDD->IOP", SPEED_TEST_3 },
     { "#4 Random raw read 6MB UDMA 4+ HDD->IOP->EE", SPEED_TEST_4 },
     { "#5 Sequential raw read 16MB UDMA 0-4 HDD->IOP->EE", SPEED_TEST_5 },
-    { "#5 Random raw read 6MB UDMA 0-4 HDD->IOP->EE", SPEED_TEST_6 },
-    { "#6 Sequential raw read 64MB in 512kb blocks UDMA 0+ HDD->IOP", SPEED_TEST_7 },
+    { "#6 Random raw read 6MB UDMA 0-4 HDD->IOP->EE", SPEED_TEST_6 },
+    { "#7 Sequential raw read 64MB in 512kb blocks UDMA 0+ HDD->IOP", SPEED_TEST_7 },
 };
 static int main_menu_option_count = sizeof(main_menu_options) / sizeof(struct menu_option_info);
 
@@ -140,17 +134,12 @@ struct iop_module_info iop_modules[] =
     { "iomanx.irx", iomanX_irx, &size_iomanX_irx },
     { "fileXio.irx", fileXio_irx, &size_fileXio_irx },
 
-    // File system modules:
-    { "bdm.irx", bdm_irx, &size_bdm_irx },
-    //{ "bdmfs_fatfs.irx", bdmfs_fatfs_irx, &size_bdmfs_fatfs_irx },
-
     // HDD modules:
     { "ps2dev9.irx", ps2dev9_irx, &size_ps2dev9_irx },
     { "ps2atad.irx", ps2atad_irx, &size_ps2atad_irx },
     { "xhdd.irx", xhdd_irx, &size_xhdd_irx },
-
-    { NULL, NULL, NULL }
 };
+static int iop_modules_count = sizeof(iop_modules) / sizeof(struct iop_module_info);
 
 void LoadIOPModules()
 {
@@ -173,7 +162,7 @@ void LoadIOPModules()
     }
     
     // Loop and load required IOP modules.
-    for (int i = 0; iop_modules[i].module_buffer != NULL; i++)
+    for (int i = 0; i < iop_modules_count; i++)
     {
         _print("\t * Loading '%s' (%d)...\n", iop_modules[i].module_name, *iop_modules[i].module_size);
         if ((id = SifExecModuleBuffer((void*)iop_modules[i].module_buffer, *iop_modules[i].module_size, 0, NULL, &ret)) < 0 || ret != 0)
@@ -299,12 +288,13 @@ void PrintHDDInfo()
         ByteFlipString((u16*)&ata_identify_data.SerialNumber, sizeof(ata_identify_data.SerialNumber) / sizeof(u16));
         ByteFlipString((u16*)&ata_identify_data.ModelNumber, sizeof(ata_identify_data.ModelNumber) / sizeof(u16));
 
+        strncpy(serialNumber, ata_identify_data.SerialNumber, sizeof(ata_identify_data.SerialNumber));
+        strncpy(modelNumber, ata_identify_data.ModelNumber, sizeof(ata_identify_data.ModelNumber));
+
         ata_identify_data_valid = 1;
     }
 
     // Print model and serial numbers:
-    strncpy(serialNumber, ata_identify_data.SerialNumber, sizeof(ata_identify_data.SerialNumber));
-    strncpy(modelNumber, ata_identify_data.ModelNumber, sizeof(ata_identify_data.ModelNumber));
     scr_printf("HDD 0 detected: %s - %s\n", modelNumber, serialNumber);
 
     // Print command set/supported features info:
@@ -337,6 +327,7 @@ typedef struct
 
 void RunSequentialRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int udmaStart, int udmaEnd)
 {
+    hddAtaError_t errorInfo = { 0 };
     hddAtaSetMode_t setMode;
     setMode.type = ATA_XFER_MODE_UDMA;
 
@@ -348,8 +339,7 @@ void RunSequentialRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int
     if (udmaEnd != -1)
         highestUDMAMode = udmaEnd;
 
-    // Loop and try to perform the test on every UDMA mode available until we pass all modes or fail out on one.
-    u32 maxCrcErrorCount = (u32)((float)((sizeInMb * ONE_MB_IN_BYTES) / HDD_SECTOR_SIZE) * 0.03f);
+    // Loop and try to perform the test on every UDMA mode requested.
     for (int i = udmaStart; i <= highestUDMAMode; i++)
     {
         AlignedBlock crcErrorCount;
@@ -365,7 +355,7 @@ void RunSequentialRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int
         u32 udmaModeUsed = GetSelectedUDMAMode();
 
         // Run the read test.
-        SequentialRawReadTest(sizeInMb, blockSizeInKb, iop_io_buffer, fullpass, &crcErrorCount.value, &elapsedTimeMsecEE, &elapsedTimeMsecIOP.value);
+        int result = SequentialRawReadTest(sizeInMb, blockSizeInKb, iop_io_buffer, fullpass, &crcErrorCount.value, &elapsedTimeMsecEE, &elapsedTimeMsecIOP.value);
 
         // Calculate read stats.
         float timeInSecsEE = (float)((u32)elapsedTimeMsecEE) / 1000.0f;
@@ -380,20 +370,29 @@ void RunSequentialRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int
         if (crcErrorCount.value > 0xFFFFFFFF)
             crcErrorCount.value = 0xFFFFFFFF;
 
-        u8 testResult = crcErrorCount.value >= maxCrcErrorCount ? 0 : 1;
-
         // Print the results.
-        scr_printf("\tUDMA %d: %d\tTime: %.2f%s - %.2fMB/%s\tCRC Errors: %d\tStatus: %s\n",
-            i, udmaModeUsed, timeValueEE, timeUnits, transferSpeed, timeUnits, (u32)crcErrorCount.value, (testResult == 1 ? "PASSED" : "FAILED"));
-
-        // If the test failed bail out from trying more.
-        if (testResult == 0)
-            break;
+        if (result == 0 || result == ATA_RES_ERR_ICRC)
+        {
+            scr_printf("\tUDMA %d: %d\tTime: %.2f%s - %.2fMB/%s\tCRC Errors: %d\tStatus: %s\n",
+                i, udmaModeUsed, timeValueEE, timeUnits, transferSpeed, timeUnits, (u32)crcErrorCount.value, (crcErrorCount.value == 0 ? "PASSED" : "FAILED"));
+        }
+        else
+        {
+            // Get extended ATA error info.
+            fileXioDevctl("xhdd0:", ATA_DEVCTL_GET_ATA_ERROR, NULL, 0, &errorInfo, sizeof(errorInfo));
+            if (result == ATA_RES_ERR_IO)
+                scr_printf("\tIO Error: Status=0x%x Error=0x%x CRC Errors: %d\n", errorInfo.status, errorInfo.error, (u32)crcErrorCount.value);
+            else if (result == ATA_RES_ERR_TIMEOUT)
+                scr_printf("\tIO Timeout: Status=0x%x Error=0x%x CRC Errors: %d\n", errorInfo.status, errorInfo.error, (u32)crcErrorCount.value);
+            else
+                scr_printf("\tError %d Status=0x%x Error=0x%x CRC Errors: %d\n", result, errorInfo.status, errorInfo.error, (u32)crcErrorCount.value);
+        }
     }
 }
 
 void RunRandomRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int udmaStart, int udmaEnd)
 {
+    hddAtaError_t errorInfo = { 0 };
     hddAtaSetMode_t setMode;
     setMode.type = ATA_XFER_MODE_UDMA;
 
@@ -408,8 +407,7 @@ void RunRandomRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int udm
     // Get the max LBA of the HDD.
     u64 hddCapacityInSectors = ((u64)ata_identify_data.Max48BitLBA[1] << 32) | (u64)ata_identify_data.Max48BitLBA[0];
 
-    // Loop and try to perform the test on every UDMA mode available until we pass all modes or fail out on one.
-    u32 maxCrcErrorCount = (u32)((float)((sizeInMb * ONE_MB_IN_BYTES) / HDD_SECTOR_SIZE) * 0.03f);
+    // Loop and try to perform the test on every UDMA mode requested.
     for (int i = udmaStart; i <= highestUDMAMode; i++)
     {
         AlignedBlock crcErrorCount;
@@ -425,7 +423,7 @@ void RunRandomRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int udm
         u32 udmaModeUsed = GetSelectedUDMAMode();
 
         // Run the read test.
-        RandomRawReadTest(sizeInMb, blockSizeInKb, iop_io_buffer, fullpass, hddCapacityInSectors, &crcErrorCount.value, &elapsedTimeMsecEE, &elapsedTimeMsecIOP.value);
+        int result = RandomRawReadTest(sizeInMb, blockSizeInKb, iop_io_buffer, fullpass, hddCapacityInSectors, &crcErrorCount.value, &elapsedTimeMsecEE, &elapsedTimeMsecIOP.value);
 
         // Calculate read stats.
         float timeInSecsEE = (float)((u32)elapsedTimeMsecEE) / 1000.0f;
@@ -440,15 +438,23 @@ void RunRandomRawReadTest(u32 sizeInMb, u32 blockSizeInKb, int fullpass, int udm
         if (crcErrorCount.value > 0xFFFFFFFF)
             crcErrorCount.value = 0xFFFFFFFF;
 
-        u8 testResult = crcErrorCount.value >= maxCrcErrorCount ? 0 : 1;
-
         // Print the results.
-        scr_printf("\tUDMA %d: %d\tTime: %.2f%s - %.2fMB/%s\tCRC Errors: %d\tStatus: %s\n",
-            i, udmaModeUsed, timeValueEE, timeUnits, transferSpeed, timeUnits, (u32)crcErrorCount.value, (testResult == 1 ? "PASSED" : "FAILED"));
-
-        // If the test failed bail out from trying more.
-        if (testResult == 0)
-            break;
+        if (result == 0 || result == ATA_RES_ERR_ICRC)
+        {
+            scr_printf("\tUDMA %d: %d\tTime: %.2f%s - %.2fMB/%s\tCRC Errors: %d\tStatus: %s\n",
+                i, udmaModeUsed, timeValueEE, timeUnits, transferSpeed, timeUnits, (u32)crcErrorCount.value, (crcErrorCount.value == 0 ? "PASSED" : "FAILED"));
+        }
+        else
+        {
+            // Get extended ATA error info.
+            fileXioDevctl("xhdd0:", ATA_DEVCTL_GET_ATA_ERROR, NULL, 0, &errorInfo, sizeof(errorInfo));
+            if (result == ATA_RES_ERR_IO)
+                scr_printf("\tIO Error: Status=0x%x Error=0x%x CRC Errors: %d\n", errorInfo.status, errorInfo.error, (u32)crcErrorCount.value);
+            else if (result == ATA_RES_ERR_TIMEOUT)
+                scr_printf("\tIO Timeout: Status=0x%x Error=0x%x CRC Errors: %d\n", errorInfo.status, errorInfo.error, (u32)crcErrorCount.value);
+            else
+                scr_printf("\tError %d Status=0x%x Error=0x%x CRC Errors: %d\n", result, errorInfo.status, errorInfo.error, (u32)crcErrorCount.value);
+        }
     }
 }
 
