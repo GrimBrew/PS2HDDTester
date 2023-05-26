@@ -14,7 +14,7 @@ make
 ### Borrowed code
 HDDTester uses the atad iop module from ps2sdk with some slight modifications to get additional error info, as well as the xhdd iop module from [OPL](https://github.com/ps2homebrew/Open-PS2-Loader) to help facilitate the speed tests and send additional commands to the drive.
 
-## Explaination of speed tests
+## Explanation of speed tests
 There are a number of different speed tests for performing benchmarks on sequential reads, random reads, and maximum throughput. The tests come in two varieties: HDD -> IOP, and HDD -> EE. Because the HDD controller is connected to the IOP all data must pass through the IOP before it can be transferred to the EE, where it can be processed by the running application. This requires two DMA operations, one from the HDD controller to the IOP, and one from the IOP to the EE. I've added two varieties for most tests so you can see what the actual read speed is off the HDD (HDD -> IOP), and what the full trip time is from the HDD to the running application (HDD -> EE).
 
 The reads times for the HDD -> IOP tests can be considered your theorehtical times, and the HDD -> EE times can be considered your actual times. Test #7 is basically your "high score" test, it serves no real purpose other than prove that UDMA 5 (and 6) are functional on the PS2, and it can actually operate at UDMA 5 speeds.
