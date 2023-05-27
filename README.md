@@ -3,6 +3,8 @@ HDD speed test tool for PlayStation 2 consoles. Using this tool you can run vari
 
 ![](images/hddtester.png)
 
+Note: All data and screenshots in this post were performed using an official Sony network adapter with the BitFunx sata board.
+
 ## Compiling
 You'll need the latest version of [ps2sdk](https://github.com/ps2dev/ps2sdk) installed to compile HDDTester. After cloning the repository you can cd into the hddtester folder and run make.
 ```
@@ -17,7 +19,7 @@ HDDTester uses the atad iop module from ps2sdk with some slight modifications to
 ## Explanation of speed tests
 There are a number of different speed tests for performing benchmarks on sequential reads, random reads, and maximum throughput. The tests come in two varieties: HDD -> IOP, and HDD -> EE. Because the HDD controller is connected to the IOP all data must pass through the IOP before it can be transferred to the EE, where it can be processed by the running application. This requires two DMA operations, one from the HDD controller to the IOP, and one from the IOP to the EE. I've added two varieties for most tests so you can see what the actual read speed is off the HDD (HDD -> IOP), and what the full trip time is from the HDD to the running application (HDD -> EE).
 
-The reads times for the HDD -> IOP tests can be considered your theorehtical times, and the HDD -> EE times can be considered your actual times. Test #7 is basically your "high score" test, it serves no real purpose other than prove that UDMA 5 (and 6) are functional on the PS2, and it can actually operate at UDMA 5 speeds.
+The reads times for the HDD -> IOP tests can be considered your theoretical times, and the HDD -> EE times can be considered your actual times. Test #7 is basically your "high score" test, it serves no real purpose other than prove that UDMA 5 (and 6) are functional on the PS2, and it can actually operate at UDMA 5 speeds.
 
 Below is a breakdown of what each test does:
 1. Sequential read of 64MB in various block sizes from the HDD -> IOP at UDMA 4 to the highest UDMA mode supported by the drive.
@@ -38,10 +40,10 @@ Running test #7 I've been able to achieve up to 80MB/s between the HDD and IOP, 
 
 While HDD IO will function just fine if the drive is put into UDMA 6 (and presumably UDMA 7 as well), I don't know that it's possible to get higher than UDMA 5 throughput to the IOP. By tweaking various things I was able to get a bit more throughput out of this transfer, and I suspect if the drivers on the IOP stack where optimized specifically for transfer speed you could get the throughput even higher, but I don't know if it would surpass the 100MB theorehtical maximum of UDMA 5 (though I would love to see someone try!).
 
-So how does this effect loading times for games running off the HDD? For any games using large transfer sizes (32Kb or higher) there will be slight performance gains IF the data being read is contiguous (the sectors being read are sequential, not fragmented or split up). I don't know if there would be any noticable difference in-game, but I suspect the answer is no. This would mostly affect streaming IO for things like music, videos, etc., which typically require a continuous flow of data that's read asynchronously. However, if the sectors being read are not contiguous (ie: they are fragmented) then the performance gains from running at UDMA 5 or 6 is negligable at best.
+So how does this effect loading times for games running off the HDD? For any games using large transfer sizes (32Kb or higher) there will be slight performance gains IF the data being read is contiguous (the sectors being read are sequential, not fragmented or split up). I don't know if there would be any noticeable difference in-game, but I suspect the answer is no. This would mostly affect streaming IO for things like music, videos, etc., which typically require a continuous flow of data that's read asynchronously. However, if the sectors being read are not contiguous (ie: they are fragmented) then the performance gains from running at UDMA 5 or 6 is negligible at best.
 
 ## Mechanical vs SSD and drive speed
-So does a SSD perform better than a mechanical HDD when put inside of a PS2? Yes, but not in all cases. Comparing the results from the sequential read tests on a SDD vs a 7200 rpm mechanical HDD the results are almost identical, in fact, the mechanical HDD actually out performed the SSD more often than the SSD out performed the HDD (though the difference in time is negligable at best). However, in the random read tests the SSD was 10x faster for block sizes of 2Kb and 4Kb, and 5x faster in block sizes of 16Kb and 32Kb. So for non-sequential reads the SSD will wipe the floor with the HDD. I guess that's good if your drive is fragmented to hell but I don't know how much of those gains will actually be realized when loading a game off the HDD.
+So does a SSD perform better than a mechanical HDD when put inside of a PS2? Yes, but not in all cases. Comparing the results from the sequential read tests on a SDD vs a 7200 rpm mechanical HDD the results are almost identical, in fact, the mechanical HDD actually out performed the SSD more often than the SSD out performed the HDD (though the difference in time is negligible at best). However, in the random read tests the SSD was 10x faster for block sizes of 2Kb and 4Kb, and 5x faster in block sizes of 16Kb and 32Kb. So for non-sequential reads the SSD will wipe the floor with the HDD. I guess that's good if your drive is fragmented to hell but I don't know how much of those gains will actually be realized when loading a game off the HDD.
 
 So what about drive speed for mechanical drives, how much slower is a 5400 rpm drive vs. a 7200 rpm drive? For sequential read tests the 7200 rpm drive will complete read operations ~2-3 seconds faster on average than the 5400 rpm drive. For random read tests the 7200 rpm drive will complete ~10 seconds faster for block sizes of 2Kb and 4Kb, and 1-2 seconds faster for larger block sizes.
 
