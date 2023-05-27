@@ -50,6 +50,10 @@ So what about drive speed for mechanical drives, how much slower is a 5400 rpm d
 ## Speed test results
 Here is a table of the results for the speed tests I ran on a SSD, 7200 rpm HDD, and 5400 rpm HDD.
 
+SSD: Samsung PM871a 512GB
+HDD 1: Seagate ST3000DM001 7200 rpm 3TB
+HDD 2: Samsung HM251JI 5400 rpm 250GB
+
 ### Sequential read 64MB HDD -> EE
 | UDMA | Block Size (Kb) | SSD | 7200 HDD | 5400 HDD |
 |---|---|---|---|---|
